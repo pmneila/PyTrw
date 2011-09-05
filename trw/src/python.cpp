@@ -58,7 +58,7 @@ py::object add_grid_nodes<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy, const Py
     int ndim = PyArray_NDIM(unaryterms);
     npy_intp* shape = PyArray_DIMS(unaryterms);
     PyArrayObject* nodeids = reinterpret_cast<PyArrayObject*>(
-                                PyArray_SimpleNew(ndim-1, &shape[1], NPY_INT));
+                                PyArray_SimpleNew(ndim-1, &shape[1], NPY_ULONG));
     
     if(shape[0] != 2)
         throw std::runtime_error("add_grid_node only supports binary unary terms");
@@ -80,7 +80,7 @@ py::object add_grid_nodes<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy, const Py
                                                                 TypeBinary::NodeData(d0, d1));
         
         // Store the node.
-        PyArray_SafeSet<int>(nodeids, nodeids_idx, reinterpret_cast<int>(id));
+        PyArray_SafeSet<unsigned long>(nodeids, nodeids_idx, reinterpret_cast<unsigned long>(id));
     }
     
     return py::object(nodeids);
