@@ -10,7 +10,9 @@
 
 namespace py = boost::python;
 
-// Some convenience functions for easy access from Python.
+typedef unsigned long numeric_pointer;
+
+// Some convenience functions for easy and fast access from Python.
 
 template<class T>
 py::object minimize_trw(MRFEnergy<T>& mrfenergy,
@@ -80,7 +82,7 @@ py::object add_grid_nodes<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy, const Py
                                                                 TypeBinary::NodeData(d0, d1));
         
         // Store the node.
-        PyArray_SafeSet<unsigned long>(nodeids, nodeids_idx, reinterpret_cast<unsigned long>(id));
+        PyArray_SafeSet<numeric_pointer>(nodeids, nodeids_idx, reinterpret_cast<numeric_pointer>(id));
     }
     
     return py::object(nodeids);
@@ -102,7 +104,7 @@ void add_grid_edges<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy,
     for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
     {
         npy_intp* coord = it.getIndex();
-        NodeId id1 = reinterpret_cast<NodeId>(PyArray_SafeGet<unsigned long>(nodeids, coord));
+        NodeId id1 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));
         
         for(int d=0; d < ndim; ++d)
         {
@@ -110,7 +112,7 @@ void add_grid_edges<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy,
                 continue;
             
             --coord[d];
-            NodeId id2 = reinterpret_cast<NodeId>(PyArray_SafeGet<unsigned long>(nodeids, coord));
+            NodeId id2 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));
             ++coord[d];
             
             mrfenergy.AddEdge(id1, id2, ed);
@@ -131,7 +133,7 @@ py::object get_solution(MRFEnergy<T>& mrfenergy, const PyArrayObject* nodeids)
     
     for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
     {
-        NodeId id = reinterpret_cast<NodeId>(PyArray_SafeGet<int>(nodeids, it.getIndex()));
+        NodeId id = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, it.getIndex()));
         Label label = mrfenergy.GetSolution(id);
         PyArray_SafeSet(solution, it.getIndex(), label);
     }
