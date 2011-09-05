@@ -102,7 +102,7 @@ void add_grid_edges<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy,
     for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
     {
         npy_intp* coord = it.getIndex();
-        NodeId id1 = reinterpret_cast<NodeId>(PyArray_SafeGet<int>(nodeids, coord));
+        NodeId id1 = reinterpret_cast<NodeId>(PyArray_SafeGet<unsigned long>(nodeids, coord));
         
         for(int d=0; d < ndim; ++d)
         {
@@ -110,7 +110,7 @@ void add_grid_edges<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy,
                 continue;
             
             --coord[d];
-            NodeId id2 = reinterpret_cast<NodeId>(PyArray_SafeGet<int>(nodeids, coord));
+            NodeId id2 = reinterpret_cast<NodeId>(PyArray_SafeGet<unsigned long>(nodeids, coord));
             ++coord[d];
             
             mrfenergy.AddEdge(id1, id2, ed);
