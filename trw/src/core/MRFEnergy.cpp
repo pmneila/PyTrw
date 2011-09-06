@@ -1,13 +1,14 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdexcept>
 #include "MRFEnergy.h"
 
 void DefaultErrorFn(const char* msg)
 {
-	fprintf(stderr, "%s\n", msg);
-	exit(1);
+    throw std::runtime_error(msg);
 }
 
 template <class T> MRFEnergy<T>::MRFEnergy(GlobalSize Kglobal)

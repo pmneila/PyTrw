@@ -7,6 +7,7 @@
 #include "pyarraymodule.h"
 
 #include "pyarray_index.h"
+#include <vector>
 
 namespace py = boost::python;
 
@@ -143,6 +144,40 @@ py::object get_solution(MRFEnergy<T>& mrfenergy, const PyArrayObject* nodeids)
 
 // Python wrapper.
 
+template<class T>
+void add_mrfenergy(py::dict cls_dict, py::object key, const std::string& suffix)
+{
+    typedef typename T::LocalSize LocalSize;
+    typedef typename T::NodeData NodeData;
+    typedef typename T::EdgeData EdgeData;
+    
+    // NodeId is a pointer to a private struct Node. These lines
+    // mask NodeId as an integer value (numeric_pointer).
+    typedef numeric_pointer (MRFEnergy<T>::*add_node_type)(LocalSize, NodeData);
+    typedef void (MRFEnergy<T>::*add_edge_type)(numeric_pointer, numeric_pointer, EdgeData);
+    
+    // Export the MRFEnergy class for the given T.
+    py::object c = py::class_<MRFEnergy<T> >(("MRFEnergy"+suffix).c_str(), "MRF energy representation.",
+            py::init<typename T::GlobalSize>())
+        .def("add_node", (add_node_type)(&MRFEnergy<T>::AddNode))
+        .def("add_edge", (add_edge_type)(&MRFEnergy<T>::AddEdge))
+        .def("minimize_trw", &minimize_trw<T>,
+            "Minimize the energy of the MRF using TRW.",
+            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=100,
+                py::arg("printiter")=5, py::arg("printminiter")=10))
+        .def("minimize_bp", &minimize_bp<T>,
+            "Minimize the energy of the MRF using BP.",
+            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=100,
+                py::arg("printiter")=5, py::arg("printminiter")=10))
+        .def("zero_messages", &MRFEnergy<T>::ZeroMessages)
+        .def("set_automatic_ordering", &MRFEnergy<T>::SetAutomaticOrdering)
+        .def("add_grid_nodes", &add_grid_nodes<T>)
+        .def("add_grid_edges", &add_grid_edges<T>)
+        .def("get_solution", &get_solution<T>);
+    
+    cls_dict.attr("__setitem__")(key, c);
+}
+
 void* extract_pyarray(PyObject* x)
 {
     return PyObject_TypeCheck(x, &PyArray_Type) ? x : 0;
@@ -156,6 +191,21 @@ struct PyArrayObject_to_python
     }
 };
 
+template<class T>
+struct nodeid_to_int
+{
+    typedef typename MRFEnergy<T>::NodeId NodeId;
+    static PyObject* convert(const NodeId& obj)
+    {
+        return PyInt_FromLong(reinterpret_cast<numeric_pointer>(obj));
+    }
+};
+
+void test(const std::vector<double>& v)
+{
+    v[0];
+}
+
 BOOST_PYTHON_MODULE(_trw)
 {
     import_array();
@@ -164,24 +214,32 @@ BOOST_PYTHON_MODULE(_trw)
     py::converter::registry::insert(&extract_pyarray, py::type_id<PyArrayObject>());
     py::to_python_converter<PyArrayObject, PyArrayObject_to_python>();
     
+    py::def("test", test);
+    
+    // Include specific types.
     py::class_<TypeBinary>("TypeBinary")
         // FIXME: Is there a better way to do this?
+        .setattr("NodeData", py::class_<TypeBinary::NodeData>("TypeBinary.NodeData",
+                        py::init<TypeBinary::REAL,TypeBinary::REAL>()))
         .setattr("EdgeData", py::class_<TypeBinary::EdgeData>("TypeBinary.EdgeData",
                         py::init<TypeBinary::REAL,TypeBinary::REAL,TypeBinary::REAL,TypeBinary::REAL>()))
-        .setattr("GlobalSize", py::class_<TypeBinary::GlobalSize>("TypeBinary.GlobalSize"));
+        .setattr("GlobalSize", py::class_<TypeBinary::GlobalSize>("TypeBinary.GlobalSize"))
+        .setattr("LocalSize", py::class_<TypeBinary::LocalSize>("TypeBinary.LocalSize"));
     
-    py::class_<MRFEnergy<TypeBinary> >("MRFEnergy", py::init<TypeBinary::GlobalSize>())
-        .def("minimize_trw", &minimize_trw<TypeBinary>,
-            "Minimize the energy of the MRF using TRW.",
-            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=100,
-                py::arg("printiter")=5, py::arg("printminiter")=10))
-        .def("minimize_bp", &minimize_bp<TypeBinary>,
-            "Minimize the energy of the MRF using BP.",
-            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=100,
-                py::arg("printiter")=5, py::arg("printminiter")=10))
-        .def("zero_messages", &MRFEnergy<TypeBinary>::ZeroMessages)
-        .def("set_automatic_ordering", &MRFEnergy<TypeBinary>::SetAutomaticOrdering)
-        .def("add_grid_nodes", &add_grid_nodes<TypeBinary>)
-        .def("add_grid_edges", &add_grid_edges<TypeBinary>)
-        .def("get_solution", &get_solution<TypeBinary>);
+    py::class_<TypeGeneral>("TypeGeneral")
+        // FIXME: Is there a better way to do this?
+        .setattr("NodeData",
+                        py::class_<TypeGeneral::NodeData>("TypeGeneral.NodeData",
+                            py::init<TypeBinary::REAL*>()));
+        // .setattr("EdgeData", 
+        //                 py::class_<TypeGeneral::EdgeData>("TypeGeneral.EdgeData",
+        //                     py::init< >()))
+        // .setattr("GlobalSize", py::class_<TypeGeneral::GlobalSize>("TypeGeneral.GlobalSize"))
+        // .setattr("LocalSize", py::class_<TypeGeneral::LocalSize>("TypeGeneral.LocalSize"));
+    
+    // Include MRFEnergy specializations.
+    py::dict cls_dict = py::dict();
+    // For TypeBinary.
+    add_mrfenergy<TypeBinary>(cls_dict, py::scope().attr("TypeBinary"), "TypeBinary");
+    py::scope().attr("MRFEnergy") = cls_dict;
 }
