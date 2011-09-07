@@ -108,7 +108,39 @@ py::object minimize_bp(MRFEnergy<T>& mrfenergy,
 template<class T>
 py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryterms)
 {
-    throw std::runtime_error("not implemented error");
+    typedef typename T::REAL REAL;
+    typedef typename T::LocalSize LocalSize;
+    typedef typename T::NodeData NodeData;
+    
+    int ndim = PyArray_NDIM(unaryterms);
+    npy_intp* shape = PyArray_DIMS(unaryterms);
+    PyArrayObject* nodeids = reinterpret_cast<PyArrayObject*>(
+                                PyArray_SimpleNew(ndim-1, &shape[1], NPY_ULONG));
+    
+    int num_labels = shape[0];
+    
+    std::vector<REAL> d(num_labels);
+    pyarray_index unaryterms_idx(ndim);
+    for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
+    {
+        const pyarray_index& nodeids_idx = it.getIndex();
+        // Extract unary terms for this node.
+        std::copy(nodeids_idx.idx, nodeids_idx.idx+ndim, &unaryterms_idx[1]);
+        
+        for(int j=0; j<num_labels; ++j)
+        {
+            unaryterms_idx[0] = j;
+            d.push_back(PyArray_SafeGet<REAL>(unaryterms, unaryterms_idx));
+        }
+        
+        // Create the node.
+        typename MRFEnergy<T>::NodeId id = mrfenergy.AddNode(LocalSize(num_labels), NodeData(d));
+        
+        // Store the node.
+        PyArray_SafeSet<numeric_pointer>(nodeids, nodeids_idx, reinterpret_cast<numeric_pointer>(id));
+    }
+    
+    return py::object(nodeids);
 }
 
 template<>
@@ -249,16 +281,6 @@ struct PyArrayObject_to_python
     static PyObject* convert(const PyArrayObject& obj)
     {
         return py::incref((PyObject*)&obj);
-    }
-};
-
-template<class T>
-struct nodeid_to_int
-{
-    typedef typename MRFEnergy<T>::NodeId NodeId;
-    static PyObject* convert(const NodeId& obj)
-    {
-        return PyInt_FromLong(reinterpret_cast<numeric_pointer>(obj));
     }
 };
 
