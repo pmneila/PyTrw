@@ -1,5 +1,6 @@
 
 #include <boost/python.hpp>
+#include <boost/python/stl_iterator.hpp>
 
 #include "core/MRFEnergy.h"
 
@@ -7,6 +8,8 @@
 #include "pyarraymodule.h"
 
 #include "pyarray_index.h"
+
+#include <iostream>
 #include <vector>
 
 namespace py = boost::python;
@@ -14,6 +17,58 @@ namespace py = boost::python;
 typedef unsigned long numeric_pointer;
 
 // Some convenience functions for easy and fast access from Python.
+
+TypeGeneral::NodeData::NodeData(const py::object& iter)
+{
+    typedef TypeGeneral::REAL REAL;
+    py::stl_input_iterator<REAL> it(iter), end;
+    bool haslen = PyObject_HasAttrString(iter.ptr(), "__len__");
+    
+    if(haslen)
+    {
+        m_data.resize(py::len(iter));
+        std::copy(it, end, m_data.begin());
+    }
+    else
+        for(; it!=end; ++it)
+        {
+           m_data.push_back(*it);
+           std::cout << *it << " ";
+        }        
+}
+
+TypeGeneral::EdgeData::EdgeData(const py::object& obj)
+{
+    typedef TypeGeneral::REAL REAL;
+    bool isiterable = PyObject_HasAttrString(obj.ptr(), "__iter__");
+    
+    if(isiterable)
+    {
+        py::stl_input_iterator<REAL> it(obj), end;
+        bool haslen = PyObject_HasAttrString(obj.ptr(), "__len__");
+        
+        m_type = GENERAL;
+        
+        if(haslen)
+        {
+            m_dataGeneral.resize(py::len(obj));
+            std::copy(it, end, m_dataGeneral.begin());
+        }
+        else
+        {
+            for(; it!=end; ++it)
+            {
+               m_dataGeneral.push_back(*it);
+               std::cout << *it << " ";
+            }
+        }
+    }
+    else
+    {
+        m_type = POTTS;
+        m_lambdaPotts = py::extract<REAL>(obj);
+    }
+}
 
 template<class T>
 py::object minimize_trw(MRFEnergy<T>& mrfenergy,
@@ -51,7 +106,10 @@ py::object minimize_bp(MRFEnergy<T>& mrfenergy,
 }
 
 template<class T>
-py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryterms);
+py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryterms)
+{
+    throw std::runtime_error("not implemented error");
+}
 
 template<>
 py::object add_grid_nodes<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy, const PyArrayObject* unaryterms)
@@ -90,7 +148,10 @@ py::object add_grid_nodes<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy, const Py
 }
 
 template<class T>
-void add_grid_edges(MRFEnergy<T>& mrfenergy, const PyArrayObject* nodeids, const typename T::EdgeData& ed);
+void add_grid_edges(MRFEnergy<T>& mrfenergy, const PyArrayObject* nodeids, const typename T::EdgeData& ed)
+{
+    throw std::runtime_error("not implemented error");
+}
 
 template<>
 void add_grid_edges<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy,
@@ -145,7 +206,7 @@ py::object get_solution(MRFEnergy<T>& mrfenergy, const PyArrayObject* nodeids)
 // Python wrapper.
 
 template<class T>
-void add_mrfenergy(py::dict cls_dict, py::object key, const std::string& suffix)
+void add_mrfenergy_class(py::dict cls_dict, py::object key, const std::string& suffix)
 {
     typedef typename T::LocalSize LocalSize;
     typedef typename T::NodeData NodeData;
@@ -201,11 +262,6 @@ struct nodeid_to_int
     }
 };
 
-void test(const std::vector<double>& v)
-{
-    v[0];
-}
-
 BOOST_PYTHON_MODULE(_trw)
 {
     import_array();
@@ -214,32 +270,37 @@ BOOST_PYTHON_MODULE(_trw)
     py::converter::registry::insert(&extract_pyarray, py::type_id<PyArrayObject>());
     py::to_python_converter<PyArrayObject, PyArrayObject_to_python>();
     
-    py::def("test", test);
-    
     // Include specific types.
     py::class_<TypeBinary>("TypeBinary")
         // FIXME: Is there a better way to do this?
-        .setattr("NodeData", py::class_<TypeBinary::NodeData>("TypeBinary.NodeData",
-                        py::init<TypeBinary::REAL,TypeBinary::REAL>()))
-        .setattr("EdgeData", py::class_<TypeBinary::EdgeData>("TypeBinary.EdgeData",
-                        py::init<TypeBinary::REAL,TypeBinary::REAL,TypeBinary::REAL,TypeBinary::REAL>()))
-        .setattr("GlobalSize", py::class_<TypeBinary::GlobalSize>("TypeBinary.GlobalSize"))
-        .setattr("LocalSize", py::class_<TypeBinary::LocalSize>("TypeBinary.LocalSize"));
+        .setattr("NodeData",
+                        py::class_<TypeBinary::NodeData>("TypeBinary.NodeData",
+                            py::init<TypeBinary::REAL,TypeBinary::REAL>()))
+        .setattr("EdgeData",
+                        py::class_<TypeBinary::EdgeData>("TypeBinary.EdgeData",
+                            py::init<TypeBinary::REAL,TypeBinary::REAL,TypeBinary::REAL,TypeBinary::REAL>()))
+        .setattr("GlobalSize",
+                        py::class_<TypeBinary::GlobalSize>("TypeBinary.GlobalSize"))
+        .setattr("LocalSize",
+                        py::class_<TypeBinary::LocalSize>("TypeBinary.LocalSize"));
     
     py::class_<TypeGeneral>("TypeGeneral")
-        // FIXME: Is there a better way to do this?
         .setattr("NodeData",
                         py::class_<TypeGeneral::NodeData>("TypeGeneral.NodeData",
-                            py::init<TypeBinary::REAL*>()));
-        // .setattr("EdgeData", 
-        //                 py::class_<TypeGeneral::EdgeData>("TypeGeneral.EdgeData",
-        //                     py::init< >()))
-        // .setattr("GlobalSize", py::class_<TypeGeneral::GlobalSize>("TypeGeneral.GlobalSize"))
-        // .setattr("LocalSize", py::class_<TypeGeneral::LocalSize>("TypeGeneral.LocalSize"));
+                            py::init<py::object>()))
+        .setattr("EdgeData", 
+                        py::class_<TypeGeneral::EdgeData>("TypeGeneral.EdgeData",
+                            py::init<py::object>()))
+        .setattr("GlobalSize",
+                        py::class_<TypeGeneral::GlobalSize>("TypeGeneral.GlobalSize"))
+        .setattr("LocalSize",
+                        py::class_<TypeGeneral::LocalSize>("TypeGeneral.LocalSize",
+                            py::init<int>()));
     
     // Include MRFEnergy specializations.
     py::dict cls_dict = py::dict();
     // For TypeBinary.
-    add_mrfenergy<TypeBinary>(cls_dict, py::scope().attr("TypeBinary"), "TypeBinary");
+    add_mrfenergy_class<TypeBinary>(cls_dict, py::scope().attr("TypeBinary"), "TypeBinary");
+    add_mrfenergy_class<TypeGeneral>(cls_dict, py::scope().attr("TypeGeneral"), "TypeGeneral");
     py::scope().attr("MRFEnergy") = cls_dict;
 }

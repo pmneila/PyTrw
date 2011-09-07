@@ -109,10 +109,11 @@ void testGeneral()
 
 #include <string.h>
 #include <assert.h>
+#include <vector>
 
-
+// Forward declarations.
+namespace boost{namespace python{class object;}}
 template <class T> class MRFEnergy;
-
 
 class TypeGeneral
 {
@@ -134,55 +135,49 @@ public:
 	struct LocalSize; // local information about number of labels (stored at each node)
 	struct NodeData; // argument to MRFEnergy::AddNode()
 	struct EdgeData; // argument to MRFEnergy::AddEdge()
-
-
+    
+    
 	struct GlobalSize
 	{
 	};
-
+    
 	struct LocalSize // number of labels is stored at MRFEnergy::m_Kglobal
 	{
 		LocalSize(int K);
-
+        
 	private:
 	friend struct Vector;
 	friend struct Edge;
 		int		m_K; // number of labels
 	};
-
+    
 	struct NodeData
 	{
-		NodeData(REAL* data); // data = pointer to array of size MRFEnergy::m_Kglobal
+		// NodeData(REAL* data); // data = pointer to array of size MRFEnergy::m_Kglobal
+        NodeData(const std::vector<REAL>& data);
+        NodeData(const boost::python::object& iter);
 
 	private:
 	friend struct Vector;
 	friend struct Edge;
-		REAL*		m_data;
+		std::vector<REAL> m_data;
 	};
-
+    
 	struct EdgeData
 	{
 		EdgeData(Type type, REAL lambdaPotts); // type must be POTTS
-		EdgeData(Type type, REAL* data); // type must be GENERAL. data = pointer to array of size Ki*Kj
+		EdgeData(Type type, const std::vector<REAL>& data); // type must be GENERAL. data = pointer to array of size Ki*Kj
 		                                 // such that V(ki,kj) = data[ki + Ki*kj]
-
+        EdgeData(const boost::python::object& obj);
+    
 	private:
 	friend struct Vector;
 	friend struct Edge;
 		Type		m_type;
-		union
-		{
-			REAL	m_lambdaPotts;
-			REAL*	m_dataGeneral;
-		};
+		REAL	m_lambdaPotts;
+		std::vector<REAL> m_dataGeneral;
 	};
-
-
-
-
-
-
-
+	
 	//////////////////////////////////////////////////////////////////////////////////
 	////////////////////////// Visible only to MRFEnergy /////////////////////////////
 	//////////////////////////////////////////////////////////////////////////////////
@@ -293,10 +288,9 @@ inline TypeGeneral::LocalSize::LocalSize(int K)
 
 ///////////////////// NodeData and EdgeData ///////////////////////
 
-inline TypeGeneral::NodeData::NodeData(REAL* data)
-{
-	m_data = data;
-}
+inline TypeGeneral::NodeData::NodeData(const std::vector<REAL>& data)
+    : m_data(data)
+{}
 
 inline TypeGeneral::EdgeData::EdgeData(Type type, REAL lambdaPotts)
 {
@@ -305,11 +299,11 @@ inline TypeGeneral::EdgeData::EdgeData(Type type, REAL lambdaPotts)
 	m_lambdaPotts = lambdaPotts;
 }
 
-inline TypeGeneral::EdgeData::EdgeData(Type type, REAL* data)
+inline TypeGeneral::EdgeData::EdgeData(Type type, const std::vector<REAL>& data)
+    : m_dataGeneral(data)
 {
 	assert(type == GENERAL);
 	m_type = type;
-	m_dataGeneral = data;
 }
 
 ///////////////////// Vector ///////////////////////
@@ -322,9 +316,11 @@ inline int TypeGeneral::Vector::GetSizeInBytes(GlobalSize Kglobal, LocalSize K)
 	}
 	return K.m_K*sizeof(REAL);
 }
+
 inline void TypeGeneral::Vector::Initialize(GlobalSize Kglobal, LocalSize K, NodeData data)
 {
-	memcpy(m_data, data.m_data, K.m_K*sizeof(REAL));
+	// memcpy(m_data, data.m_data, K.m_K*sizeof(REAL));
+    std::copy(data.m_data.begin(), data.m_data.end(), m_data);
 }
 
 inline void TypeGeneral::Vector::Add(GlobalSize Kglobal, LocalSize K, NodeData data)
@@ -439,7 +435,7 @@ inline int TypeGeneral::Edge::GetBufSizeInBytes(int vectorMaxSizeInBytes)
 inline void TypeGeneral::Edge::Initialize(GlobalSize Kglobal, LocalSize Ki, LocalSize Kj, EdgeData data, Vector* Di, Vector* Dj)
 {
 	m_type = data.m_type;
-
+    
 	switch (m_type)
 	{
 		case POTTS:
@@ -448,13 +444,14 @@ inline void TypeGeneral::Edge::Initialize(GlobalSize Kglobal, LocalSize Ki, Loca
 			break;
 		case GENERAL:
 			((EdgeGeneral*)this)->m_dir = 0;
-			memcpy(((EdgeGeneral*)this)->m_data, data.m_dataGeneral, Ki.m_K*Kj.m_K*sizeof(REAL));
+			//memcpy(((EdgeGeneral*)this)->m_data, data.m_dataGeneral, Ki.m_K*Kj.m_K*sizeof(REAL));
+            std::copy(data.m_dataGeneral.begin(), data.m_dataGeneral.end(), ((EdgeGeneral*)this)->m_data);
 			m_message = (Vector*)((char*)this + sizeof(EdgeGeneral) - sizeof(REAL) + Ki.m_K*Kj.m_K*sizeof(REAL));
 			break;
 		default:
 			assert(0);
 	}
-
+    
 	memset(m_message->m_data, 0, ((Ki.m_K > Kj.m_K) ? Ki.m_K : Kj.m_K)*sizeof(REAL));
 }
 
