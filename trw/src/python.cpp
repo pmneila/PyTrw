@@ -130,7 +130,7 @@ py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryter
         for(int j=0; j<num_labels; ++j)
         {
             unaryterms_idx[0] = j;
-            d.push_back(PyArray_SafeGet<REAL>(unaryterms, unaryterms_idx));
+            d[j] = PyArray_SafeGet<REAL>(unaryterms, unaryterms_idx);
         }
         
         // Create the node.
