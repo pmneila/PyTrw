@@ -125,7 +125,7 @@ py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryter
     {
         const pyarray_index& nodeids_idx = it.getIndex();
         // Extract unary terms for this node.
-        std::copy(nodeids_idx.idx, nodeids_idx.idx+ndim-1, &unaryterms_idx[1]);
+        std::copy(nodeids_idx.idx, nodeids_idx.idx+nodeids_idx.ndim, &unaryterms_idx[1]);
         
         for(int j=0; j<num_labels; ++j)
         {
