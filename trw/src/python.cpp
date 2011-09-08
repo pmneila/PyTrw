@@ -267,7 +267,7 @@ struct PyArrayObject_to_python
 {
     static PyObject* convert(const PyArrayObject& obj)
     {
-        return py::incref((PyObject*)&obj);
+        return (PyObject*)&obj;
     }
 };
 

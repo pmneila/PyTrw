@@ -4,6 +4,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdexcept>
+#include <iostream>
 #include "MRFEnergy.h"
 
 void DefaultErrorFn(const char* msg)
@@ -27,6 +28,7 @@ template <class T> MRFEnergy<T>::MRFEnergy(GlobalSize Kglobal)
 
 template <class T> MRFEnergy<T>::~MRFEnergy<T>()
 {
+    std::cout << "Deleting MRFEnergy" << std::endl;
 	while (m_mallocBlockFirst)
 	{
 		MallocBlock* next = m_mallocBlockFirst->m_next;

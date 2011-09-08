@@ -19,14 +19,14 @@ if __name__ == '__main__':
     # e.minimize_trw(printiter=1, printminiter=0, itermax=5)
     # print e.get_solution(np.array([nodeid0, nodeid1]))
     
-    e = MRFEnergy[TypeBinary](TypeBinary.GlobalSize())
+    e = MRFEnergy[TypeGeneral](TypeGeneral.GlobalSize())
     D = np.zeros((2,2))
-    D[0,0] = 1
+    D[0,0] = 2
     D[1,0] = 5
     D[0,1] = 10
     D[1,1] = 2
     nodeids = e.add_grid_nodes(D)
-    ed = TypeBinary.EdgeData(0, 3, 3, 0);
+    ed = TypeGeneral.EdgeData([0, 3, 3, 0]);
     e.add_grid_edges_direction(nodeids, ed, 0)
     e.minimize_bp(printiter=1, printminiter=0, itermax=10)
     labels = e.get_solution(nodeids)
