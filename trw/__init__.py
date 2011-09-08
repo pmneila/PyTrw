@@ -30,11 +30,11 @@ if __name__ == '__main__':
     D[0] = -0.5/(1+img)
     D[1] = -0.5/(2-img)
     x_ids = e.add_grid_nodes(D)
-    D = np.random.random((101, 630, 630))
-    D[50,100,100] = np.inf
-    z_ids = e.add_grid_nodes(D)
+    #D = np.random.random((101, 630, 630))
+    #D[50,100,100] = np.inf
+    #z_ids = e.add_grid_nodes(D)
     # ed = TypeGeneral.EdgeData([0, 3, 3, 0]);
     # e.add_grid_edges(nodeids, ed)
-    e.minimize_bp(printiter=1, printminiter=0, itermax=10)
-    labels = e.get_solution(nodeids)
-    print labels
+    #e.minimize_bp(printiter=1, printminiter=0, itermax=10)
+    #labels = e.get_solution(nodeids)
+    #print labels
