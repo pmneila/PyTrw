@@ -81,7 +81,8 @@ void testBinary()
 
 #include <string.h>
 #include <assert.h>
-
+#include <vector>
+#include <stdexcept>
 
 template <class T> class MRFEnergy;
 
@@ -108,11 +109,18 @@ public:
 
 	struct LocalSize // always 2 labels - no need to store it
 	{
+        LocalSize(){}
+        LocalSize(int K)
+        {
+            if(K != 2)
+                throw std::runtime_error("TypeBinary only accepts two labels per node [LocalSize(2)]");
+        }
 	};
 
 	struct NodeData
 	{
 		NodeData(REAL D0, REAL D1);
+        NodeData(const std::vector<REAL>& data);
 
 	private:
 	friend struct Vector;
@@ -231,6 +239,14 @@ inline TypeBinary::NodeData::NodeData(REAL D0, REAL D1)
 {
 	m_data[0] = D0;
 	m_data[1] = D1;
+}
+
+inline TypeBinary::NodeData::NodeData(const std::vector<REAL>& data)
+{
+    if(data.size() != 2)
+        throw std::runtime_error("TypeBinary only accepts two labels per node");
+    m_data[0] = data[0];
+    m_data[1] = data[1];
 }
 
 inline TypeBinary::EdgeData::EdgeData(REAL V00, REAL V01, REAL V10, REAL V11)

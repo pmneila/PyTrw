@@ -19,22 +19,15 @@ if __name__ == '__main__':
     # e.minimize_trw(printiter=1, printminiter=0, itermax=5)
     # print e.get_solution(np.array([nodeid0, nodeid1]))
     
-    e = MRFEnergy[TypeGeneral](TypeGeneral.GlobalSize())
-    # D = np.zeros((2,2))
-    # D[0,0] = 2
-    # D[1,0] = 2
-    # D[0,1] = 2
-    # D[1,1] = 2
-    img = np.int_(np.random.random((640,640)) > 0.5)
-    D = np.random.random((2,640,640))
-    D[0] = -0.5/(1+img)
-    D[1] = -0.5/(2-img)
-    x_ids = e.add_grid_nodes(D)
-    #D = np.random.random((101, 630, 630))
-    #D[50,100,100] = np.inf
-    #z_ids = e.add_grid_nodes(D)
-    # ed = TypeGeneral.EdgeData([0, 3, 3, 0]);
-    # e.add_grid_edges(nodeids, ed)
-    #e.minimize_bp(printiter=1, printminiter=0, itermax=10)
-    #labels = e.get_solution(nodeids)
-    #print labels
+    e = MRFEnergy[TypeBinary](TypeBinary.GlobalSize())
+    D = np.zeros((2,2))
+    D[0,0] = 1
+    D[1,0] = 5
+    D[0,1] = 10
+    D[1,1] = 2
+    nodeids = e.add_grid_nodes(D)
+    ed = TypeBinary.EdgeData(0, 3, 3, 0);
+    e.add_grid_edges_direction(nodeids, ed, 0)
+    e.minimize_bp(printiter=1, printminiter=0, itermax=10)
+    labels = e.get_solution(nodeids)
+    print labels
