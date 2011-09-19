@@ -1,6 +1,7 @@
 
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
+#include <boost/python/slice.hpp>
 
 #include "core/MRFEnergy.h"
 
@@ -107,7 +108,7 @@ py::object minimize_bp(MRFEnergy<T>& mrfenergy,
 
 template<class T>
 py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryterms,
-                            int axis=-1)
+                            int axis=0)
 {
     typedef typename T::REAL REAL;
     typedef typename T::LocalSize LocalSize;
@@ -193,7 +194,7 @@ void add_grid_edges_direction(MRFEnergy<T>& mrfenergy, const PyArrayObject* node
     int ndim = PyArray_NDIM(nodeids);
     npy_intp* shape = PyArray_DIMS(nodeids);
     
-    if(direction >= ndim)
+    if(direction >= ndim || direction < 0)
         throw std::runtime_error("invalid direction");
     
     for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
@@ -213,7 +214,7 @@ void add_grid_edges_direction(MRFEnergy<T>& mrfenergy, const PyArrayObject* node
 
 template<class T>
 void add_grid_edges_direction_local(MRFEnergy<T>& mrfenergy, const PyArrayObject* nodeids,
-                                const PyArrayObject* ed, int direction)
+                                const PyArrayObject* ed, int direction, int axis=0)
 {
     typedef typename T::REAL REAL;
     typedef typename MRFEnergy<T>::NodeId NodeId;
@@ -224,15 +225,28 @@ void add_grid_edges_direction_local(MRFEnergy<T>& mrfenergy, const PyArrayObject
     int ed_ndim = PyArray_NDIM(ed);
     npy_intp* ed_shape = PyArray_DIMS(ed);
     
-    if(direction >= ndim)
+    if(direction >= ndim || direction < 0)
         throw std::runtime_error("invalid direction");
     if(ed_ndim != ndim+1)
         throw std::runtime_error("invalid number of dimensions for the edge data array");
-    if(std::mismatch(shape, shape+direction, ed_shape, std::less_equal<int>()).first != shape+direction
-            || std::mismatch(shape+direction+1, shape+ndim, ed_shape, std::less_equal<int>()).first != shape+ndim)
+    
+    // Check and fix the axis parameter.
+    if(-axis > ed_ndim || axis >= ed_ndim)
+        throw std::runtime_error("axis is out of bounds");
+    if(axis < 0)
+        axis = ed_ndim + axis;
+    
+    // Check the shapes.
+    // First, take the axis dimension out of the ed_shape.
+    npy_intp* ed_shape_fix = new npy_intp[ndim];
+    std::copy(ed_shape, ed_shape+axis, ed_shape_fix);
+    std::copy(ed_shape+axis+1, ed_shape+ed_ndim, ed_shape_fix+axis);
+    if(std::mismatch(shape, shape+direction, ed_shape_fix, std::less_equal<int>()).first != shape+direction
+            || std::mismatch(shape+direction+1, shape+ndim, ed_shape_fix+direction+1, std::less_equal<int>()).first != shape+ndim)
         throw std::runtime_error("invalid shape for the edge data array");
-    if(ed_shape[direction] < shape[direction]-1)
+    if(ed_shape_fix[direction] < shape[direction]-1)
         throw std::runtime_error("invalid shape for the edge data array");
+    delete [] ed_shape_fix;
     
     for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
     {        
@@ -245,8 +259,16 @@ void add_grid_edges_direction_local(MRFEnergy<T>& mrfenergy, const PyArrayObject
         
         // Create a list to access the EdgeData.
         py::list lcoord;
-        for(int d=0; d<ndim; ++d)
+        int d;
+        for(d=0; d<ndim; ++d)
+        {
+            if(d == axis)
+                lcoord.append(py::slice());
             lcoord.append(coord[d]);
+        }
+        if(d == axis)
+            lcoord.append(py::slice());
+        
         PyArrayObject* localed = reinterpret_cast<PyArrayObject*>(
                         PyObject_GetItem((PyObject*)ed, py::tuple(lcoord).ptr()));
         NodeId id2 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));
@@ -259,7 +281,7 @@ void add_grid_edges_direction_local(MRFEnergy<T>& mrfenergy, const PyArrayObject
 template<>
 void add_grid_edges_direction_local<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy,
                                 const PyArrayObject* nodeids,
-                                const PyArrayObject* ed, int direction)
+                                const PyArrayObject* ed, int direction, int axis)
 {
     throw std::runtime_error("not implemented");
 }
@@ -317,13 +339,13 @@ void add_mrfenergy_class(py::dict cls_dict, py::object key, const std::string& s
         .def("zero_messages", &MRFEnergy<T>::ZeroMessages)
         .def("set_automatic_ordering", &MRFEnergy<T>::SetAutomaticOrdering)
         .def("add_grid_nodes", &add_grid_nodes<T>,
-            (py::arg("unary_terms"), py::arg("axis")=-1))
+            (py::arg("unary_terms"), py::arg("axis")=0))
         .def("add_grid_edges", &add_grid_edges<T>,
             (py::arg("nodeids"), py::arg("edge_data")))
         .def("add_grid_edges_direction", &add_grid_edges_direction<T>,
             (py::arg("nodeis"), py::arg("edge_data"), py::arg("direction")))
         .def("add_grid_edges_direction_local", &add_grid_edges_direction_local<T>,
-            (py::arg("nodeis"), py::arg("edge_data"), py::arg("direction")))
+            (py::arg("nodeis"), py::arg("edge_data"), py::arg("direction"), py::arg("axis")=0))
         .def("get_solution", &get_solution<T>,
             (py::arg("nodeids")));
     

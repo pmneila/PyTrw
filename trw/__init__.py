@@ -27,10 +27,11 @@ if __name__ == '__main__':
     D[1,1] = 2
     D[0,2] = 3
     D[1,2] = 3
-    nodeids = e.add_grid_nodes(D, 0)
+    nodeids = e.add_grid_nodes(D)
+    print nodeids.shape
     # ed = TypeGeneral.EdgeData([0, 3, 3, 0]);
-    ed = np.ones((3,4))
-    e.add_grid_edges_direction_local(nodeids, ed, 0)
+    ed = np.ones((2,4))
+    e.add_grid_edges_direction_local(nodeids, ed, 0, -1)
     e.minimize_bp(printiter=1, printminiter=0, itermax=10)
     labels = e.get_solution(nodeids)
     print labels
