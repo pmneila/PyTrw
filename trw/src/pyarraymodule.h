@@ -113,19 +113,19 @@ T PyArray_SafeSet(PyArrayObject* aobj, const npy_intp* indaux, const T& value)
         *reinterpret_cast<long long*>(ptr) = static_cast<long long>(value);
         break;
     case PyArray_UBYTE:
-        *reinterpret_cast<char*>(ptr) = static_cast<unsigned char>(value);
+        *reinterpret_cast<unsigned char*>(ptr) = static_cast<unsigned char>(value);
         break;
     case PyArray_USHORT:
-        *reinterpret_cast<short*>(ptr) = static_cast<unsigned short>(value);
+        *reinterpret_cast<unsigned short*>(ptr) = static_cast<unsigned short>(value);
         break;
     case PyArray_UINT:
-        *reinterpret_cast<int*>(ptr) = static_cast<unsigned int>(value);
+        *reinterpret_cast<unsigned int*>(ptr) = static_cast<unsigned int>(value);
         break;
     case PyArray_ULONG:
-        *reinterpret_cast<long*>(ptr) = static_cast<unsigned long>(value);
+        *reinterpret_cast<unsigned long*>(ptr) = static_cast<unsigned long>(value);
         break;
     case PyArray_ULONGLONG:
-        *reinterpret_cast<long long*>(ptr) = static_cast<unsigned long long>(value);
+        *reinterpret_cast<unsigned long long*>(ptr) = static_cast<unsigned long long>(value);
         break;
     case PyArray_FLOAT:
         *reinterpret_cast<float*>(ptr) = static_cast<float>(value);

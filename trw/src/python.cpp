@@ -106,7 +106,8 @@ py::object minimize_bp(MRFEnergy<T>& mrfenergy,
 }
 
 template<class T>
-py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryterms)
+py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryterms,
+                            int axis=-1)
 {
     typedef typename T::REAL REAL;
     typedef typename T::LocalSize LocalSize;
@@ -114,10 +115,18 @@ py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryter
     
     int ndim = PyArray_NDIM(unaryterms);
     npy_intp* shape = PyArray_DIMS(unaryterms);
-    PyArrayObject* nodeids = reinterpret_cast<PyArrayObject*>(
-                                PyArray_SimpleNew(ndim-1, &shape[1], NPY_ULONG));
+    if(-axis > ndim || axis >= ndim)
+        throw std::runtime_error("axis is out of bounds");
+    if(axis < 0)
+        axis = ndim + axis;
+    int num_labels = shape[axis];
     
-    int num_labels = shape[0];
+    npy_intp* nodeids_shape = new npy_intp[ndim-1];
+    // Copy the shape except for the axis given.
+    std::copy(shape, shape+axis, nodeids_shape);
+    std::copy(shape+axis+1, shape+ndim, nodeids_shape+axis);
+    PyArrayObject* nodeids = reinterpret_cast<PyArrayObject*>(
+                                PyArray_SimpleNew(ndim-1, nodeids_shape, NPY_ULONG));
     
     std::vector<REAL> d(num_labels);
     pyarray_index unaryterms_idx(ndim);
@@ -125,11 +134,12 @@ py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryter
     {
         const pyarray_index& nodeids_idx = it.getIndex();
         // Extract unary terms for this node.
-        std::copy(nodeids_idx.idx, nodeids_idx.idx+nodeids_idx.ndim, &unaryterms_idx[1]);
-        
+        std::copy(nodeids_idx.idx, nodeids_idx.idx+axis, &unaryterms_idx[0]);
+        std::copy(nodeids_idx.idx+axis, nodeids_idx.idx+nodeids_idx.ndim, &unaryterms_idx[axis+1]);
+        // std::copy(nodeids_idx.idx, nodeids_idx.idx+nodeids_idx.ndim, &unaryterms_idx[1]);
         for(int j=0; j<num_labels; ++j)
         {
-            unaryterms_idx[0] = j;
+            unaryterms_idx[axis] = j;
             d[j] = PyArray_SafeGet<REAL>(unaryterms, unaryterms_idx);
         }
         
@@ -139,6 +149,8 @@ py::object add_grid_nodes(MRFEnergy<T>& mrfenergy, const PyArrayObject* unaryter
         // Store the node.
         PyArray_SafeSet<numeric_pointer>(nodeids, nodeids_idx, reinterpret_cast<numeric_pointer>(id));
     }
+    
+    delete [] nodeids_shape;
     
     return py::object(nodeids);
 }
@@ -187,17 +199,69 @@ void add_grid_edges_direction(MRFEnergy<T>& mrfenergy, const PyArrayObject* node
     for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
     {
         npy_intp* coord = it.getIndex();
-        NodeId id1 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));
-        
         if(coord[direction] - 1 < 0)
             continue;
         
+        NodeId id1 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));
         --coord[direction];
         NodeId id2 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));
         ++coord[direction];
         
         mrfenergy.AddEdge(id2, id1, ed);
     }
+}
+
+template<class T>
+void add_grid_edges_direction_local(MRFEnergy<T>& mrfenergy, const PyArrayObject* nodeids,
+                                const PyArrayObject* ed, int direction)
+{
+    typedef typename T::REAL REAL;
+    typedef typename MRFEnergy<T>::NodeId NodeId;
+    typedef typename MRFEnergy<T>::EdgeData EdgeData;
+    
+    int ndim = PyArray_NDIM(nodeids);
+    npy_intp* shape = PyArray_DIMS(nodeids);
+    int ed_ndim = PyArray_NDIM(ed);
+    npy_intp* ed_shape = PyArray_DIMS(ed);
+    
+    if(direction >= ndim)
+        throw std::runtime_error("invalid direction");
+    if(ed_ndim != ndim+1)
+        throw std::runtime_error("invalid number of dimensions for the edge data array");
+    if(std::mismatch(shape, shape+direction, ed_shape, std::less_equal<int>()).first != shape+direction
+            || std::mismatch(shape+direction+1, shape+ndim, ed_shape, std::less_equal<int>()).first != shape+ndim)
+        throw std::runtime_error("invalid shape for the edge data array");
+    if(ed_shape[direction] < shape[direction]-1)
+        throw std::runtime_error("invalid shape for the edge data array");
+    
+    for(pyarray_iterator it(nodeids); !it.atEnd(); ++it)
+    {        
+        npy_intp* coord = it.getIndex();
+        if(coord[direction] - 1 < 0)
+            continue;
+        
+        NodeId id1 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));        
+        --coord[direction];
+        
+        // Create a list to access the EdgeData.
+        py::list lcoord;
+        for(int d=0; d<ndim; ++d)
+            lcoord.append(coord[d]);
+        PyArrayObject* localed = reinterpret_cast<PyArrayObject*>(
+                        PyObject_GetItem((PyObject*)ed, py::tuple(lcoord).ptr()));
+        NodeId id2 = reinterpret_cast<NodeId>(PyArray_SafeGet<numeric_pointer>(nodeids, coord));
+        ++coord[direction];
+        
+        mrfenergy.AddEdge(id2, id1, EdgeData(py::object(localed)));
+    }
+}
+
+template<>
+void add_grid_edges_direction_local<TypeBinary>(MRFEnergy<TypeBinary>& mrfenergy,
+                                const PyArrayObject* nodeids,
+                                const PyArrayObject* ed, int direction)
+{
+    throw std::runtime_error("not implemented");
 }
 
 template<class T>
@@ -238,8 +302,10 @@ void add_mrfenergy_class(py::dict cls_dict, py::object key, const std::string& s
     // Export the MRFEnergy class for the given T.
     py::object c = py::class_<MRFEnergy<T> >(("MRFEnergy"+suffix).c_str(), "MRF energy representation.",
             py::init<typename T::GlobalSize>())
-        .def("add_node", (add_node_type)(&MRFEnergy<T>::AddNode))
-        .def("add_edge", (add_edge_type)(&MRFEnergy<T>::AddEdge))
+        .def("add_node", (add_node_type)(&MRFEnergy<T>::AddNode),
+            (py::arg("local_size"), py::arg("node_data")))
+        .def("add_edge", (add_edge_type)(&MRFEnergy<T>::AddEdge),
+            (py::arg("nodeid1"), py::arg("nodeid2"), py::arg("edge_data")))
         .def("minimize_trw", &minimize_trw<T>,
             "Minimize the energy of the MRF using TRW.",
             (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=100,
@@ -250,10 +316,16 @@ void add_mrfenergy_class(py::dict cls_dict, py::object key, const std::string& s
                 py::arg("printiter")=5, py::arg("printminiter")=10))
         .def("zero_messages", &MRFEnergy<T>::ZeroMessages)
         .def("set_automatic_ordering", &MRFEnergy<T>::SetAutomaticOrdering)
-        .def("add_grid_nodes", &add_grid_nodes<T>)
-        .def("add_grid_edges", &add_grid_edges<T>)
-        .def("add_grid_edges_direction", &add_grid_edges_direction<T>)
-        .def("get_solution", &get_solution<T>);
+        .def("add_grid_nodes", &add_grid_nodes<T>,
+            (py::arg("unary_terms"), py::arg("axis")=-1))
+        .def("add_grid_edges", &add_grid_edges<T>,
+            (py::arg("nodeids"), py::arg("edge_data")))
+        .def("add_grid_edges_direction", &add_grid_edges_direction<T>,
+            (py::arg("nodeis"), py::arg("edge_data"), py::arg("direction")))
+        .def("add_grid_edges_direction_local", &add_grid_edges_direction_local<T>,
+            (py::arg("nodeis"), py::arg("edge_data"), py::arg("direction")))
+        .def("get_solution", &get_solution<T>,
+            (py::arg("nodeids")));
     
     cls_dict.attr("__setitem__")(key, c);
 }
@@ -308,7 +380,6 @@ BOOST_PYTHON_MODULE(_trw)
     
     // Include MRFEnergy specializations.
     py::dict cls_dict = py::dict();
-    // For TypeBinary.
     add_mrfenergy_class<TypeBinary>(cls_dict, py::scope().attr("TypeBinary"), "TypeBinary");
     add_mrfenergy_class<TypeGeneral>(cls_dict, py::scope().attr("TypeGeneral"), "TypeGeneral");
     py::scope().attr("MRFEnergy") = cls_dict;

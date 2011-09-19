@@ -20,14 +20,17 @@ if __name__ == '__main__':
     # print e.get_solution(np.array([nodeid0, nodeid1]))
     
     e = MRFEnergy[TypeGeneral](TypeGeneral.GlobalSize())
-    D = np.zeros((2,2))
+    D = np.zeros((2,3))
     D[0,0] = 2
     D[1,0] = 5
     D[0,1] = 10
     D[1,1] = 2
-    nodeids = e.add_grid_nodes(D)
-    ed = TypeGeneral.EdgeData([0, 3, 3, 0]);
-    e.add_grid_edges_direction(nodeids, ed, 0)
+    D[0,2] = 3
+    D[1,2] = 3
+    nodeids = e.add_grid_nodes(D, 0)
+    # ed = TypeGeneral.EdgeData([0, 3, 3, 0]);
+    ed = np.ones((3,4))
+    e.add_grid_edges_direction_local(nodeids, ed, 0)
     e.minimize_bp(printiter=1, printminiter=0, itermax=10)
     labels = e.get_solution(nodeids)
     print labels
