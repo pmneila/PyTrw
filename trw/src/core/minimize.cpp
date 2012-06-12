@@ -4,7 +4,13 @@
 #include <assert.h>
 #include "MRFEnergy.h"
 
-template <class T> int MRFEnergy<T>::Minimize_TRW_S(Options& options, REAL& lowerBound, REAL& energy, REAL* min_marginals)
+#include <vector>
+
+template <class T> int MRFEnergy<T>::Minimize_TRW_S(Options& options,
+                                                    std::vector<int>& iterList,
+                                                    std::vector<REAL>& lowerBoundList,
+                                                    std::vector<REAL>& energyList,
+                                                    REAL* min_marginals)
 {
 	Node* i;
 	Node* j;
@@ -12,6 +18,9 @@ template <class T> int MRFEnergy<T>::Minimize_TRW_S(Options& options, REAL& lowe
 	REAL vMin;
 	int iter;
 	REAL lowerBoundPrev;
+        
+        REAL energy;
+        REAL lowerBound;
 
 	if (!m_isEnergyConstructionCompleted)
 	{
@@ -125,8 +134,12 @@ template <class T> int MRFEnergy<T>::Minimize_TRW_S(Options& options, REAL& lowe
 		{
 			energy = ComputeSolutionAndEnergy();
 			printf("iter %d: lower bound = %f, energy = %f\n", iter, lowerBound, energy);
+                        
+                        iterList.push_back(iter);
+                        energyList.push_back(energy);
+                        lowerBoundList.push_back(lowerBound);
 		}
-
+		
 		if (lastIter) break;
 
 		// check convergence of lower bound
@@ -143,13 +156,16 @@ template <class T> int MRFEnergy<T>::Minimize_TRW_S(Options& options, REAL& lowe
 	return iter;
 }
 
-template <class T> int MRFEnergy<T>::Minimize_BP(Options& options, REAL& energy, REAL* min_marginals)
+template <class T> int MRFEnergy<T>::Minimize_BP(Options& options, std::vector<int>& iterList,
+                                                 std::vector<REAL>& energyList, REAL* min_marginals)
 {
 	Node* i;
 	Node* j;
 	MRFEdge* e;
 	REAL vMin;
 	int iter;
+        
+        REAL energy;
 
 	if (!m_isEnergyConstructionCompleted)
 	{
@@ -252,8 +268,11 @@ template <class T> int MRFEnergy<T>::Minimize_BP(Options& options, REAL& energy,
 		{
 			energy = ComputeSolutionAndEnergy();
 			printf("iter %d: energy = %f\n", iter, energy);
+                        iterList.push_back(iter);
+                        energyList.push_back(energy);
 		}
-
+		
+                
 		// if finishFlag==true terminate
 		if (lastIter) break;
 	}

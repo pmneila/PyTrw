@@ -20,7 +20,6 @@ set(trw_SOURCES core/minimize.cpp
                 core/MRFEnergy.cpp
                 core/ordering.cpp
                 core/treeProbabilities.cpp
-                core/example.cpp
                 python.cpp
                 pyarray_index.cpp)
 

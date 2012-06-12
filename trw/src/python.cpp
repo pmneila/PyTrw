@@ -72,9 +72,21 @@ TypeGeneral::EdgeData::EdgeData(const py::object& obj)
 }
 
 template<class T>
+py::list vector2pylist(const T& src)
+{
+    typedef typename T::const_iterator const_iterator;
+    
+    py::list dest;
+    for(const_iterator it=src.begin(); it!=src.end(); ++it)
+        dest.append(*it);
+    
+    return dest;
+}
+
+template<class T>
 py::object minimize_trw(MRFEnergy<T>& mrfenergy,
-    typename T::REAL eps=-1, int itermax=1000000,
-    int printiter=5, int printminiter=10)
+    typename T::REAL eps=-1, int itermax=50,
+    int printiter=5, int printminiter=0, bool details=false)
 {
     typename MRFEnergy<T>::Options opt;
     opt.m_eps = eps;
@@ -82,17 +94,21 @@ py::object minimize_trw(MRFEnergy<T>& mrfenergy,
     opt.m_printIter = printiter;
     opt.m_printMinIter = printminiter;
     
-    typename T::REAL lowerBound;
-    typename T::REAL energy;
-    int num_iters = mrfenergy.Minimize_TRW_S(opt, lowerBound, energy);
+    std::vector<int> iterVector;
+    std::vector<typename T::REAL> lowerBoundVector;
+    std::vector<typename T::REAL> energyVector;
+    int num_iters = mrfenergy.Minimize_TRW_S(opt, iterVector, lowerBoundVector, energyVector);
     
-    return py::make_tuple(num_iters, energy, lowerBound);
+    if(details)
+        return py::make_tuple(vector2pylist(iterVector), vector2pylist(energyVector), vector2pylist(lowerBoundVector));
+    else
+        return py::make_tuple(num_iters, energyVector.back(), lowerBoundVector.back());
 }
 
 template<class T>
 py::object minimize_bp(MRFEnergy<T>& mrfenergy,
-    typename T::REAL eps=-1, int itermax=1000000,
-    int printiter=5, int printminiter=10)
+    typename T::REAL eps=-1, int itermax=50,
+    int printiter=5, int printminiter=0, bool details=false)
 {
     typename MRFEnergy<T>::Options opt;
     opt.m_eps = eps;
@@ -100,10 +116,14 @@ py::object minimize_bp(MRFEnergy<T>& mrfenergy,
     opt.m_printIter = printiter;
     opt.m_printMinIter = printminiter;
     
-    typename T::REAL energy;
-    int num_iters = mrfenergy.Minimize_BP(opt, energy);
+    std::vector<int> iterVector;
+    std::vector<typename T::REAL> energyVector;
+    int num_iters = mrfenergy.Minimize_BP(opt, iterVector, energyVector);
     
-    return py::make_tuple(num_iters, energy);
+    if(details)
+        return py::make_tuple(vector2pylist(iterVector), vector2pylist(energyVector));
+    else
+        return py::make_tuple(num_iters, energyVector.back());
 }
 
 template<class T>
@@ -330,12 +350,12 @@ void add_mrfenergy_class(py::dict cls_dict, py::object key, const std::string& s
             (py::arg("nodeid1"), py::arg("nodeid2"), py::arg("edge_data")))
         .def("minimize_trw", &minimize_trw<T>,
             "Minimize the energy of the MRF using TRW.",
-            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=100,
-                py::arg("printiter")=5, py::arg("printminiter")=10))
+            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=50,
+                py::arg("printiter")=5, py::arg("printminiter")=0, py::arg("details")=false))
         .def("minimize_bp", &minimize_bp<T>,
             "Minimize the energy of the MRF using BP.",
-            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=100,
-                py::arg("printiter")=5, py::arg("printminiter")=10))
+            (py::arg("self"), py::arg("eps")=-1, py::arg("itermax")=50,
+                py::arg("printiter")=5, py::arg("printminiter")=0, py::arg("details")=false))
         .def("zero_messages", &MRFEnergy<T>::ZeroMessages)
         .def("set_automatic_ordering", &MRFEnergy<T>::SetAutomaticOrdering)
         .def("add_grid_nodes", &add_grid_nodes<T>,

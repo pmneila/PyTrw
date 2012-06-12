@@ -106,10 +106,14 @@ public:
 	// If the user provides array min_marginals, then the code
 	// sets this array accordingly. (The size of the array depends on the type
 	// used. Normally, it's (# nodes)*(# labels). Exception: for TypeBinaryFast it's (# nodes).
-	int Minimize_TRW_S(Options& options, REAL& lowerBound, REAL& energy, REAL* min_marginals = NULL);
+	int Minimize_TRW_S(Options& options, 
+                           std::vector<int>& iterList,
+                           std::vector<REAL>& lowerBoundList, 
+                           std::vector<REAL>& energyList,
+                           REAL* min_marginals = NULL);
 
 	// Returns number of iterations. Sets energy.
-	int Minimize_BP(Options& options, REAL& energy, REAL* min_marginals = NULL);
+	int Minimize_BP(Options& options, std::vector<int>& iterList, std::vector<REAL>& energyList, REAL* min_marginals = NULL);
 
 	// Returns an integer in [0,Ki). Can be called only after Minimize().
 	Label GetSolution(NodeId i);
